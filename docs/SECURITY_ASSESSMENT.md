@@ -31,7 +31,7 @@ project names or secrets**; the exact payload is previewed in the UI. Model avai
 ## Known limitations / residual risks
 1. **Legacy engines not integrated** (sources unavailable) — see `ENGINE_AUDIT.md`.
 2. Heuristic regex rules produce false positives/negatives; taint tracking is Python-only and intra-procedural.
-3. CVE scanning absent (adapters are registered but disabled until verified).
+3. CVE scanning: only `pip-audit` (Python) is implemented and verified; it is opt-in because it sends package names/versions to an external vulnerability service. OSV-Scanner and npm audit remain disabled.
 4. Transport is plain HTTP on loopback. If ever proxied, terminate TLS in a reverse proxy and keep the bind on loopback.
 5. Resource limits: POSIX uses `RLIMIT_AS/CPU/FSIZE`; **on Windows only the file/byte quotas and the parent-enforced hard kill apply** (a Job Object limit is future work).
 6. `JWT` secret and agent token live in files under `data/` (0600 on POSIX); on Windows rely on folder ACLs.

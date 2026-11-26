@@ -21,7 +21,8 @@ integrated**. Nothing here claims otherwise. Nothing was executed from those fol
 |---|---|---|---|---|
 | secrets, source, config, docker, authz, taint, deps | native | file / directory / project | normalised findings → json/html/sarif/pdf | deterministic, read-only |
 | vibesec | external adapter | file / directory / project | SARIF | **unavailable until configured on agent** |
-| pip-audit, osv-scanner, npm-audit | planned CVE scanners | project | — | disabled: not installed/verified; need network + DB |
+| pip-audit | built-in tool wrapper (CVE) | project / directory | normalised findings | **verified** (pip-audit 2.10.1, real run found CVEs). Fixed argv, no shell, `--no-deps`. **Network egress** (package names + versions go to PyPI/OSV), so it is off unless the agent config sets `enable_pip_audit: true` |
+| osv-scanner, npm-audit | planned CVE scanners | project | — | disabled: not installed/verified |
 | beko | AI | finding metadata | markdown | optional, unverified |
 | multi-project-audit, report-normalizer, importer | legacy | — | — | superseded natively; legacy code not imported |
 

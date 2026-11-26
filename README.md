@@ -27,7 +27,7 @@ powershell -File scripts\start.ps1 -ApprovedRoot D:\Security\TestProjects
 | `backend/unitech_v3/` | API, DB + migrations, auth/RBAC, audit, services, **engines/** (registry, rules, taint, deps, external adapter) |
 | `agent/unitech_agent/` | Restricted agent: path validation, RPC (browse/discover/validate), isolated worker process, heartbeat. Config example: `agent/agent.config.example.json` |
 | `frontend/` | 19-page SOC web app |
-| `backend/tests`, `e2e/` | pytest suite (66 tests) and Playwright browser workflow (20 checks) |
+| `backend/tests`, `e2e/` | pytest suite (69 tests) and Playwright browser workflow (20 checks) |
 | `testdata/vulnapp/` | Intentionally vulnerable **non-production** sample project (fake secrets) |
 | `docs/` | `ARCHITECTURE`, `ENGINE_AUDIT`, `SECURITY_ASSESSMENT`, `ROLLBACK_RECOVERY`, `USER_GUIDE_EN`, `USER_GUIDE_AR` |
 

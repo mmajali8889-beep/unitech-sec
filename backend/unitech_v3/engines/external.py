@@ -83,3 +83,47 @@ def parse_sarif(engine_id: str, raw: str, target: Path, rel_root: Path) -> list[
                                     redact_line(msg, 160) or "External finding", rel.replace("\\", "/"), int(line), redact_line(snippet),
                                     "See external engine documentation for remediation.", "", "heuristic", 0, ctx_hash(snippet or msg)))
     return found
+
+
+# ---------------------------------------------------------------- pip-audit (CVE) - fixed argv, opt-in
+PIP_AUDIT_ARGV = ["pip-audit", "--no-deps", "--disable-pip", "-f", "json", "-r"]
+
+
+def pip_audit_available() -> bool:
+    return shutil.which("pip-audit") is not None
+
+
+def parse_pip_audit(raw: str, rel: str, lines: list[str]) -> list[RawFinding]:
+    out: list[RawFinding] = []
+    data = json.loads(raw)
+    for dep in data.get("dependencies", []):
+        name = dep.get("name", "")
+        ln = next((i for i, l in enumerate(lines, 1) if l.strip().lower().startswith(name.lower())), 1)
+        raw_line = lines[ln - 1] if lines else name
+        for v in dep.get("vulns", []):
+            ids = [v.get("id", "")] + list(v.get("aliases", []))
+            cve = next((i for i in ids if i.startswith("CVE-")), ids[0] if ids else "VULN")
+            fixes = ", ".join(v.get("fix_versions") or []) or "no fixed version published"
+            out.append(RawFinding("pip-audit", cve, "dependency", "high", f"{name} {dep.get('version')}: known vulnerability {cve}",
+                                  rel, ln, redact_line(raw_line), f"Upgrade to a fixed version ({fixes}).", "", "deterministic", 0,
+                                  ctx_hash(f"{name}{dep.get('version')}{cve}")))
+    return out
+
+
+def run_pip_audit(req_file: Path, rel: str, timeout_s: int, cancel_check) -> list[RawFinding]:
+    import time
+    env = {k: v for k, v in os.environ.items() if k in ("PATH", "SYSTEMROOT", "TEMP", "TMP", "HOME", "LANG", "HTTPS_PROXY", "HTTP_PROXY", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE")}
+    p = subprocess.Popen([*PIP_AUDIT_ARGV, str(req_file)], env=env, shell=False, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    end = time.monotonic() + timeout_s
+    while p.poll() is None:
+        if cancel_check():
+            p.kill(); p.wait(); raise Cancelled()
+        if time.monotonic() > end:
+            p.kill(); p.wait(); raise Timeout()
+        time.sleep(0.05)
+    stdout = p.stdout.read().decode("utf-8", "replace") if p.stdout else ""
+    if p.returncode not in (0, 1) or not stdout.strip().startswith("{"):
+        err = (p.stderr.read().decode("utf-8", "replace") if p.stderr else "")[-200:]
+        raise RuntimeError(f"pip-audit failed (code {p.returncode}): {redact_line(err, 200)}")
+    lines = req_file.read_text(encoding="utf-8", errors="replace").splitlines()
+    return parse_pip_audit(stdout, rel, lines)

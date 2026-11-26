@@ -14,7 +14,7 @@ import httpx
 from unitech_v3 import __version__
 from unitech_v3.engines import external
 from unitech_v3.engines.base import Limits
-from unitech_v3.engines.scanner import NATIVE
+from unitech_v3.engines.scanner import NATIVE, TOOLS
 from unitech_v3.pathguard import PathDenied, is_link_like, validate_under_roots
 from unitech_v3.redact import redact_line
 
@@ -57,7 +57,10 @@ class Agent:
 
     # ---------------------------------------------------------- heartbeat
     def external_available(self) -> list[str]:
-        return [eid for eid, c in self.cfg.external_engines.items() if external.available(c)[0]]
+        eng = [eid for eid, c in self.cfg.external_engines.items() if external.available(c)[0]]
+        if self.cfg.enable_pip_audit and external.pip_audit_available():
+            eng.append("pip-audit")
+        return eng
 
     def heartbeat(self) -> dict:
         status = {"active_job": self.active_job, "platform": platform.system(), "python": platform.python_version()}
@@ -150,7 +153,10 @@ class Agent:
                 targets, scan_root = job["targets"], root
             engines = job["engines"]
             for e in engines:
-                if e not in NATIVE and e not in self.cfg.external_engines:
+                if e in TOOLS and not (self.cfg.enable_pip_audit and external.pip_audit_available()):
+                    self._post(f"/api/agent/jobs/{jid}/complete", {"outcome": "failed", "error": f"engine not enabled on agent: {e}"})
+                    return
+                if e not in NATIVE and e not in TOOLS and e not in self.cfg.external_engines:
                     self._post(f"/api/agent/jobs/{jid}/complete", {"outcome": "failed", "error": f"engine not permitted on agent: {e}"})
                     return
             o = job.get("options", {})

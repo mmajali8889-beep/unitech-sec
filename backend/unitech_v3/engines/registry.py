@@ -23,8 +23,6 @@ NATIVE_META = {
 }
 
 PLANNED = [
-    dict(id="pip-audit", name="pip-audit (Python CVE scan)", binary="pip-audit", category="dependency",
-         reason="CVE scanners are enabled only after installation and compatibility are verified; they also need network access to a vulnerability database."),
     dict(id="osv-scanner", name="OSV-Scanner (multi-ecosystem CVE scan)", binary="osv-scanner", category="dependency",
          reason="Same as pip-audit; requires explicit installation approval."),
     dict(id="npm-audit", name="npm audit (JavaScript CVE scan)", binary="npm", category="dependency",
@@ -67,6 +65,11 @@ def describe(external_ids: dict[str, dict] | None = None, disabled: set[str] | N
                     available="vibesec" in agent_ext, enabled="vibesec" not in disabled, targets=["file", "directory", "project"],
                     rules=[], outputs=["sarif"], exit_codes={"0": "no findings", "1": "findings"}, parameters=["{target}", "{output}"],
                     limitations=[ext_cfg["note"]]))
+    out.append(dict(id="pip-audit", name="pip-audit (Python CVE scan)", kind="tool", deterministic=True, category="dependency",
+                    available="pip-audit" in agent_ext, enabled="pip-audit" not in disabled, targets=["project", "directory"], rules=[],
+                    outputs=["json", "html", "sarif", "pdf"], exit_codes={"0": "no known vulns", "1": "vulns found"}, parameters=["requirements*.txt"],
+                    limitations=["Sends package names + pinned versions to the vulnerability service (PyPI/OSV): NETWORK EGRESS. Off unless the agent sets enable_pip_audit.",
+                                 "Reads pinned requirements*.txt only (--no-deps, no installation, no code execution)"]))
     for p in PLANNED:
         installed = shutil.which(p["binary"]) is not None
         out.append(dict(id=p["id"], name=p["name"], kind="planned", deterministic=True, category=p["category"], available=False,

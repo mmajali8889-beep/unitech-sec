@@ -160,3 +160,28 @@ def test_external_failure_is_partial_not_fatal(tmp_path):
     cfg = {"vibesec": {"argv": ["definitely-not-installed-xyz", "{target}"]}}
     r = scan(ROOT, [], ["secrets", "vibesec"], Limits(), lambda: False, None, cfg)
     assert r["engine_status"]["vibesec"]["state"] == "failed" and r["engine_status"]["secrets"]["state"] == "ok"
+
+
+# ------------------------------------------------------------ pip-audit CVE engine
+CANNED = '{"dependencies":[{"name":"requests","version":"2.19.0","vulns":[{"id":"PYSEC-2018-28","fix_versions":["2.20.0"],"aliases":["CVE-2018-18074"]}]},{"name":"flask","version":"3.0.0","vulns":[]}]}'
+
+
+def test_pip_audit_parser():
+    fs = external.parse_pip_audit(CANNED, "requirements.txt", ["flask==3.0.0", "requests==2.19.0"])
+    assert len(fs) == 1 and fs[0].rule_id == "CVE-2018-18074" and fs[0].line == 2 and "2.20.0" in fs[0].remediation and fs[0].verification == "deterministic"
+
+
+def test_pip_audit_missing_tool_is_failed_engine(monkeypatch, tmp_path):
+    monkeypatch.setattr(external, "pip_audit_available", lambda: False)
+    (tmp_path / "requirements.txt").write_text("requests==2.19.0\n")
+    r = scan(tmp_path, [], ["deps", "pip-audit"], Limits(), lambda: False)
+    assert r["engine_status"]["pip-audit"]["state"] == "failed" and r["engine_status"]["deps"]["state"] == "ok"
+
+
+@pytest.mark.skipif(not external.pip_audit_available(), reason="pip-audit not installed")
+def test_pip_audit_real(tmp_path):
+    (tmp_path / "requirements.txt").write_text("requests==2.19.0\n")
+    r = scan(tmp_path, [], ["pip-audit"], Limits(timeout_s=120), lambda: False)
+    if r["engine_status"]["pip-audit"]["state"] == "failed":
+        pytest.skip("vulnerability service unreachable: " + r["engine_status"]["pip-audit"]["error"])
+    assert any(f.rule_id.startswith("CVE-") for f in r["findings"])

@@ -21,6 +21,7 @@ class AgentConfig:
     external_engines: dict = field(default_factory=dict)
     verify_tls: bool = True
     log_file: str | None = None
+    enable_pip_audit: bool = False
 
 
 def load(path: str | Path) -> AgentConfig:
@@ -35,4 +36,4 @@ def load(path: str | Path) -> AgentConfig:
         external.validate_template(cfg["argv"])     # rejects --fix etc. at startup
     return AgentConfig(server_url=url, token=d["token"], name=d.get("name", "agent"), approved_roots=roots,
                        external_engines=d.get("external_engines") or {}, job_memory_mb=int(d.get("job_memory_mb", 1024)),
-                       job_timeout_cap_s=int(d.get("job_timeout_cap_s", 3600)), log_file=d.get("log_file"))
+                       job_timeout_cap_s=int(d.get("job_timeout_cap_s", 3600)), log_file=d.get("log_file"), enable_pip_audit=bool(d.get("enable_pip_audit", False)))

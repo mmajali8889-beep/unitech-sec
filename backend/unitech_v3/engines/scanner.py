@@ -20,6 +20,7 @@ SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv", "env", ".to
 SKIP_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip", ".gz", ".tar", ".7z", ".exe", ".dll", ".so", ".pyc",
              ".woff", ".woff2", ".ttf", ".eot", ".mp4", ".mp3", ".svg", ".lock", ".map", ".min.js", ".db", ".sqlite", ".bin", ".whl"}
 NATIVE = {"secrets", "source", "config", "docker", "authz", "taint", "deps"}
+TOOLS = {"pip-audit"}   # built-in wrappers around installed CVE tools (network egress, opt-in)
 
 
 def _name_norm(name_l: str) -> str:
@@ -142,7 +143,8 @@ def scan(root: Path, targets: list[str], engines: list[str], limits: Limits, can
     status: dict[str, dict] = {e: {"state": "ok", "findings": 0} for e in engines}
     findings: list[RawFinding] = []
     native = [e for e in engines if e in NATIVE]
-    ext = [e for e in engines if e not in NATIVE]
+    tools = [e for e in engines if e in TOOLS]
+    ext = [e for e in engines if e not in NATIVE and e not in TOOLS]
     files, notes = collect_files(root, targets, limits, check)
     n = len(files)
     if progress:
@@ -174,6 +176,23 @@ def scan(root: Path, targets: list[str], engines: list[str], limits: Limits, can
             findings.extend(fs)
         if progress and (idx % 25 == 0 or idx == n - 1):
             progress(0.05 + 0.80 * ((idx + 1) / max(n, 1)), f"scanned {idx + 1}/{n} files")
+    for e in tools:
+        check()
+        if not ext_mod.pip_audit_available():
+            status[e] = {"state": "failed", "error": "pip-audit is not installed on the agent host", "findings": 0}
+            continue
+        try:
+            fs = []
+            for p in files:
+                if re.fullmatch(r"requirements[\w.\-]*\.txt", p.name.lower()):
+                    rel = os.path.relpath(p, root).replace("\\", "/")
+                    fs += ext_mod.run_pip_audit(p, rel, max(1, int(limits.timeout_s - (time.monotonic() - t0))), cancel_check)
+            per_engine[e] = len(fs)
+            findings.extend(fs)
+        except (Cancelled, Timeout):
+            raise
+        except Exception as ex:
+            status[e] = {"state": "failed", "error": f"{type(ex).__name__}: {ex}"[:300], "findings": 0}
     for e in ext:
         check()
         cfg = external_cfg.get(e)
